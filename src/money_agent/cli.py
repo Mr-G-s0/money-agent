@@ -16,6 +16,7 @@ from money_agent.research import (
 )
 from money_agent.service import BusinessAgent
 from money_agent.storage import Database
+from money_agent.workspace import Workspace, WorkspaceLimits
 
 
 def dollars(cents: int) -> str:
@@ -49,10 +50,20 @@ def run() -> int:
                 stale_after=timedelta(hours=settings.research_stale_hours),
             ),
         )
-    report = BusinessAgent(database, planner, research_service).run_once()
+    workspace = Workspace(
+        settings.workspace_path,
+        WorkspaceLimits(
+            max_files=settings.workspace_max_files,
+            max_bytes=settings.workspace_max_bytes,
+            max_files_per_run=settings.creation_max_files_per_run,
+            max_execution_attempts=settings.execution_max_attempts,
+            max_operations=settings.workspace_max_operations,
+        ),
+    )
+    report = BusinessAgent(database, planner, research_service, workspace).run_once()
     decision = report.decision
 
-    print("\nMONEY AGENT — VERSION 2 (READ-ONLY WEB RESEARCH; SIMULATION ONLY)")
+    print("\nMONEY AGENT — VERSION 3 (LOCAL CREATION; SIMULATION ONLY)")
     print(f"Objective: {OBJECTIVE}")
     print(f"Planner: {report.planner_name}")
     print(f"Current cash: {dollars(report.ledger.current_cash_cents)}")
@@ -82,9 +93,7 @@ def run() -> int:
         for citation_id in decision.research_citations:
             source = cited.get(citation_id)
             if source:
-                print(
-                    f"  [{citation_id}] {source['source_title']} — {source['source_url']}"
-                )
+                print(f"  [{citation_id}] {source['source_title']} — {source['source_url']}")
     if decision.assumptions:
         print("Assumptions / uncertainties:")
         for assumption in decision.assumptions:
@@ -94,18 +103,19 @@ def run() -> int:
         print(f"  {number}. {step}")
     print(f"\nNext action: {decision.next_action.description}")
     print(report.execution_note)
+    if report.creation:
+        print("\nCreated and evaluated local artifacts:")
+        for artifact in report.creation.artifacts:
+            print(f"  [{artifact.id}] {artifact.file_path} — {artifact.status}")
+        print(f"Evaluation: {report.creation.evaluation}")
     if report.approval:
         item = report.approval
         print("\nAPPROVAL REQUEST")
-        print(
-            f"ACTION: {item.action}\nCOST: {dollars(item.cost_cents)}\nREASON: {item.reason}"
-        )
+        print(f"ACTION: {item.action}\nCOST: {dollars(item.cost_cents)}\nREASON: {item.reason}")
         print(f"EXPECTED UPSIDE: {item.expected_upside}\nRISKS: {item.risks}")
         print(f"CURRENT CASH: {dollars(item.current_cash_cents)}")
         print(f"CASH AFTER ACTION: {dollars(item.cash_after_action_cents)}")
-        print(
-            f"Approval ID: {item.id} (recorded only; V2 will not execute external actions)"
-        )
+        print(f"Approval ID: {item.id} (recorded only; V3 will not execute external actions)")
     print(f"\nState saved to: {settings.database_path}")
     return 0
 

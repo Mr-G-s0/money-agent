@@ -67,6 +67,19 @@ CREATE TABLE IF NOT EXISTS research_runs (
   errors INTEGER NOT NULL DEFAULT 0,
   status TEXT NOT NULL CHECK(status IN ('running', 'completed', 'partial', 'failed'))
 );
+CREATE TABLE IF NOT EXISTS artifacts (
+  id INTEGER PRIMARY KEY,
+  file_path TEXT NOT NULL UNIQUE,
+  artifact_type TEXT NOT NULL,
+  purpose TEXT NOT NULL,
+  opportunity TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  modified_at TEXT NOT NULL,
+  status TEXT NOT NULL CHECK(status IN ('draft', 'verified', 'needs_work')),
+  evaluation_notes TEXT NOT NULL DEFAULT '',
+  related_research_ids TEXT NOT NULL DEFAULT '[]'
+);
+CREATE INDEX IF NOT EXISTS artifacts_opportunity_idx ON artifacts(opportunity, id);
 """
 
 
@@ -101,9 +114,7 @@ class Database:
         finally:
             connection.close()
 
-    def remember(
-        self, category: str, content: str, metadata: dict | None = None
-    ) -> int:
+    def remember(self, category: str, content: str, metadata: dict | None = None) -> int:
         with self.connect() as connection:
             cursor = connection.execute(
                 "INSERT INTO memory(category, content, metadata_json, created_at) VALUES (?, ?, ?, ?)",
@@ -114,9 +125,7 @@ class Database:
                     utc_now(),
                 ),
             )
-            if (
-                cursor.lastrowid is None
-            ):  # pragma: no cover - SQLite always provides this
+            if cursor.lastrowid is None:  # pragma: no cover - SQLite always provides this
                 raise RuntimeError("SQLite did not return a memory ID")
             return cursor.lastrowid
 
@@ -128,6 +137,5 @@ class Database:
                 (limit,),
             ).fetchall()
         return [
-            {**dict(row), "metadata": json.loads(row["metadata_json"])}
-            for row in reversed(rows)
+            {**dict(row), "metadata": json.loads(row["metadata_json"])} for row in reversed(rows)
         ]

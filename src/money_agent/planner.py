@@ -7,14 +7,13 @@ from typing import Protocol
 from money_agent.ledger import LedgerSummary
 from money_agent.models import ActionKind, BusinessDecision, Opportunity, ProposedAction
 
-OBJECTIVE = (
-    "Maximize legitimate REALIZED profit, starting with a simulated $100 budget."
-)
+OBJECTIVE = "Maximize legitimate REALIZED profit, starting with a simulated $100 budget."
 
 SAFETY_RULES = """Never gamble, bet, borrow, use debt or leverage, scam, defraud, mislead,
 impersonate, spam, manipulate reviews, violate platform terms or laws, bypass security, or
-access an account without authorization. Projected revenue is never realized revenue. Version 2
-can only use read-only hosted web search and cannot take external actions. Prefer small, evidence-seeking steps over speculation."""
+access an account without authorization. Projected revenue is never realized revenue. Version 3
+can use read-only hosted web search and create only inside its local workspace; it cannot take
+external actions. Prefer small, evidence-seeking steps over speculation."""
 
 
 class Planner(Protocol):

@@ -1,199 +1,120 @@
-# Money Agent — Version 2
+# Money Agent — Version 3
 
-A safety-first autonomous AI business-agent prototype. It starts with a **simulated $100.00**,
-performs bounded read-only web research, compares legitimate opportunities, selects a strategy,
-creates a plan, cites its evidence, and proposes one next action. It never spends real money or
-performs consequential external actions.
+A safety-first autonomous business-agent prototype. It starts with a **simulated $100.00**, performs bounded read-only research, compares legitimate opportunities, and now creates and evaluates useful assets in a private local sandbox. It cannot spend real money or perform consequential external actions.
 
-> This is experimental planning software, not a promise of profit or financial advice. Projections
-> are hypotheses. Only completed, recorded simulated transactions affect realized profit.
+> Experimental planning and prototyping software—not financial advice or a promise of profit. Projections are hypotheses; only completed simulated ledger entries count as realized results.
 
-## Version 2 run flow
+## Version 3 workflow
 
 ```text
-DISCOVER → RESEARCH → COMPARE → SELECT → PLAN → PROPOSE NEXT ACTION → SAVE STATE
+DISCOVER → RESEARCH → COMPARE → SELECT → PLAN → CREATE → EVALUATE
+         → PROPOSE NEXT ACTION → SAVE STATE
 ```
 
-1. Open or create the local SQLite database and load the simulated ledger and prior memory.
-2. Reuse fresh research and refresh stale research automatically.
-3. With `OPENAI_API_KEY`, run bounded discovery, demand, competitor, pricing, marketplace, and
-   constraints research through the OpenAI Responses API's hosted `web_search` tool.
-4. Persist attributable sources and a separate research-run usage/audit record.
-5. Have the OpenAI Agents SDK compare opportunities and produce a typed decision citing stored
-   numeric research IDs and listing assumptions separately.
-6. Validate the next action against hard safety rules. A harmless local action may be recorded;
-   everything financial or consequential becomes a pending approval request and is not executed.
-7. Save the strategy, decision, action result, sources, and metrics for the next run.
-
-Without a key, a clearly labeled deterministic offline planner runs and reuses saved research. It
-does not pretend that an AI or web call happened.
+One invocation loads the ledger and memory, optionally reuses or refreshes attributable research, selects an opportunity, creates or improves an appropriate local asset, evaluates locally verifiable properties, routes the proposed next action through the existing approval boundary, and persists everything. With no API key, the transparent deterministic planner selects a digital-template opportunity and produces a meaningful Markdown product prototype rather than pretending that web or AI calls occurred.
 
 ## Architecture
 
 ```text
 src/money_agent/
 ├── approvals.py   # approval records and cash snapshots
-├── cli.py         # beginner-friendly command-line output
-├── config.py      # environment configuration
-├── ledger.py      # realized cash/profit accounting
-├── models.py      # validated decision and action contracts
+├── creation.py    # asset selection, creation, reuse, and evaluation
+├── workspace.py   # capability-based file sandbox, limits, artifact memory, safe checks
+├── research.py    # bounded read-only web research, caching, attribution
 ├── planner.py     # Agents SDK planner and explicit offline fallback
-├── research.py    # read-only OpenAI web search, caching, attribution, and limits
-├── safety.py      # prohibited activity and approval gate
-├── service.py     # one discover/research/decide/save cycle
-└── storage.py     # SQLite schema and persistent state
+├── service.py     # discover-to-create orchestration
+├── storage.py     # SQLite state, evidence, and artifact schema
+├── ledger.py      # simulated realized accounting and no-debt rule
+└── safety.py      # prohibited activity and external-action approval gate
 ```
 
-The planner and research-provider protocols separate reasoning and web access from orchestration.
-Future capabilities can be added behind explicit adapters without rewriting memory, the ledger, or
-the approval boundary.
+The `Workspace` API exposes explicit text, Markdown/HTML/CSS/JavaScript/Python, JSON, and CSV file operations—not a shell. `AssetCreator` chooses a deliverable from the selected strategy and calls that narrow API. The included default creator builds or improves a ready-to-use Markdown digital-product draft; the APIs also support landing pages, sales-copy drafts, service workflows, pricing documents, research summaries, and software prototype source files.
 
-## Installation
+## Workspace sandbox
 
-Python 3.11 or newer and an internet connection for the initial dependency download are required.
+The default root is `workspace/` and is ignored by Git. Every requested path is resolved beneath that root. Unix, Windows, UNC, home-relative, URL-encoded, noncanonical Unicode, mixed-separator, overlong, and over-deep paths are rejected, as are `..` traversal, symlink escapes, and sensitive names such as `.env`, `.ssh`, credentials, private keys, browser profiles/cookies, and PEM files. Reads and writes use no-follow directory descriptors so each parent is revalidated at the filesystem operation, narrowing symlink-replacement races. Existing files require an explicit overwrite flag.
 
-```bash
-python -m venv .venv
-source .venv/bin/activate       # Windows PowerShell: .venv\Scripts\Activate.ps1
-python -m pip install --upgrade pip
-python -m pip install -e ".[dev]"
-```
+The boundary is capability-based: agent code receives a `Workspace`, never general filesystem or arbitrary-command tools. Files elsewhere—including operating-system paths and unrelated user files—are unavailable through the creation interface.
 
-The project uses the official `openai-agents` Python package and OpenAI Responses API. The research
-provider exposes only the hosted `web_search` tool—no browser, computer-use, shell, form,
-messaging, payment, or write tool.
+## Safe code execution
 
-## API configuration
+There is **no unrestricted shell executor**. Two explicit Python operations exist:
 
-1. Copy the safe template: `cp .env.example .env` (Windows: `copy .env.example .env`).
-2. Open `.env`, put your key after `OPENAI_API_KEY=`, and save it.
-3. Never put a key in source code or commit `.env`; both `.env` and common credential files are
-   ignored by Git.
+1. `python_compile` parses and compiles a workspace `.py` file without running it.
+2. `restricted_python` first applies an AST allowlist, rejecting imports, attributes, definitions, dunder access, arbitrary calls, file access, comprehensions, exponentiation, oversized syntax/literals/ranges, and unbounded `while`; it then runs isolated (`-I -S`), in the workspace, with a minimal environment and a two-second timeout. POSIX child limits cap CPU, address space, file output, and open descriptors; captured output is bounded.
 
-An API key is required for **live Version 2 web research**, but not for an offline demonstration.
-`MONEY_AGENT_MODEL` selects the model. Change the default if it is unavailable to your API project.
-OpenAI calls may incur charges on your OpenAI account; those charges are not paid from or entered
-into the simulated $100 business ledger.
+Only a small set of pure built-ins is allowed. Package installation, downloads, administrator/system commands, credential access, network tools, persistence, deployment, destructive commands, and execution of downloaded/untrusted files are not capabilities. This runner is intended only for tiny generated calculations/tests, not third-party applications.
 
-## Run Version 2
+## Artifact memory and evaluation
 
-```bash
-money-agent
-# equivalent after installation:
-python -m money_agent
-```
+SQLite records each artifact's ID, workspace-relative path, type, purpose, selected opportunity, creation and modification timestamps, status, evaluation notes, and related research IDs. A unique file path and opportunity lookup let later runs improve the existing asset instead of starting again.
 
-State is stored at `data/money_agent.db` by default and ignored by Git. Set
-`MONEY_AGENT_DB=/some/path.db` to use another file. Back up that file to preserve progress.
+After creation the agent reads the result back, checks existence/UTF-8 content, required sections, and basic completeness, then records limitations. Python files can additionally receive syntax or restricted execution checks. “Verified” means only that stated local checks passed; it does not mean demand, revenue, usefulness, security, or production readiness was proven.
 
-## How web research works
-
-The application selects its own bounded research tasks; the user does not supply queries. Each
-hosted web-search request asks OpenAI to search broadly and follow relevant sources when useful,
-prefer current/primary sources, and distinguish evidence from assumptions. Only results containing
-attributable HTTP(S) source URLs are accepted. Empty or unattributed output becomes a recorded
-research warning, not a fact.
-
-Each `research` row stores:
-
-- query, source URL, and source title;
-- UTC retrieval time and relevant synthesized findings;
-- related opportunity/research area;
-- confidence and `verified`, `inferred`, or `uncertain` status; and
-- a stable fingerprint for deduplication.
-
-Source URL/title retrieval is directly observed. Finding text is a model synthesis, so Version 2
-conservatively marks it `inferred` rather than treating a snippet or unsupported model statement as
-verified fact. The decision must cite persisted record IDs and separate uncertainties. Unsupported
-citation IDs are removed before persistence.
-
-Fresh records satisfy the same research task without another call. After the staleness window, the
-task is refreshed and an existing fingerprinted record is updated rather than duplicated. Provider
-errors are contained and audited without deleting earlier research.
-
-### Configurable research limits
+## Configurable limits
 
 ```dotenv
+MONEY_AGENT_WORKSPACE=workspace
+MONEY_AGENT_WORKSPACE_MAX_FILES=100
+MONEY_AGENT_WORKSPACE_MAX_BYTES=1000000
+MONEY_AGENT_CREATION_MAX_FILES=6
+MONEY_AGENT_EXECUTION_MAX_ATTEMPTS=3
+MONEY_AGENT_WORKSPACE_MAX_OPERATIONS=30
 MONEY_AGENT_RESEARCH_MAX_QUERIES=3
 MONEY_AGENT_RESEARCH_MAX_SOURCES=12
 MONEY_AGENT_RESEARCH_STALE_HOURS=168
 MONEY_AGENT_MAX_TURNS=8
 ```
 
-- `MAX_QUERIES` caps web-search requests per run.
-- `MAX_SOURCES` caps sources supplied to decision-making and persisted per run.
-- `STALE_HOURS` defaults to seven days before refresh.
-- `MAX_TURNS` bounds the Agents SDK decision run.
-- Set either numeric research limit to `0` to disable new research.
+Limits bound total files, total bytes, new files per run, code attempts, web queries, persisted sources, evidence staleness, and model turns. Attempts beyond a limit fail closed. A run performs one bounded create/evaluate cycle, preventing recursive creation and uncontrolled API use.
 
-API-call count, cache hits, source count, errors, and run status are stored separately in
-`research_runs`; they never affect business cash, expenses, revenue, or realized profit.
+## Safety and approvals
 
-## Ledger rules
+Version 1 and 2 guarantees remain: integer-cent simulated accounting, no debt, no projected revenue in the ledger, prohibited-activity checks, read-only evidence gathering, source attribution, and persistence. Local zero-cost creation needs no approval. Spending, purchases, transactions, contacting people, email/messaging, posts/publication, agreements, account changes, authentication, form submission, deployment, and every other consequential external action require a persisted approval request **and are still never executed**, even if approved. There is no external executor.
 
-Money is stored as integer cents. The summary reports starting balance, current cash, realized
-expenses/revenue/profit, and pending expenses. Projected revenue is rejected from the ledger and
-belongs in research or memory. An expense larger than current cash is rejected, preventing debt.
-Approval requests do not change cash. Every Version 2 transaction is simulated, and no command can
-create a real transaction.
+Creating `landing_page.html` or email copy locally is allowed. Publishing the page or sending the email is proposed only. The product cannot control a browser/computer, create accounts, make payments, purchase, deploy, scrape generally, scan networks, or transact financially.
 
-## Safety and approval boundaries
+## Install and run
 
-Hard checks reject gambling/betting, loans/debt/leverage, scams, fraud, misleading or impersonating
-people, spam, review manipulation, illegal or platform-violating behavior, security bypass, and
-unauthorized access. Enforcement does not rely only on a model prompt.
+```bash
+python -m venv .venv
+source .venv/bin/activate
+python -m pip install -e ".[dev]"
+money-agent
+```
 
-Approval requests persist and display `ACTION`, `COST`, `REASON`, `EXPECTED UPSIDE`, `RISKS`,
-`CURRENT CASH`, and `CASH AFTER ACTION`. Spending, transactions, purchases, real-person messages,
-public posts, paid accounts, agreements, important account changes, and other consequential actions
-require approval. Even an approved record cannot execute an external action or charge the ledger.
+State defaults to `data/money_agent.db`. Copy `.env.example` to `.env` to configure an API key for optional OpenAI planning/read-only hosted web research. API charges are external operational costs and are never represented as spending from the simulated ledger.
 
-Web access is read-only. The agent cannot submit forms, log in, buy anything, create accounts, send
-messages/email, post content, alter external data, download or execute untrusted programs, bypass
-restrictions, or use a general-purpose scraper. A useful future external action is proposed through
-the approval boundary, not executed.
+### Complete offline example
 
-## Tests
+1. Load the persisted simulated balance: `$100.00`.
+2. Compare three offline opportunities and select **Niche digital template pack**.
+3. Create `workspace/projects/niche-digital-template-pack/product.md` with a customer job, usable workflow, fillable template, validation checklist, and evidence IDs.
+4. Read it back and verify required sections and content length.
+5. Save/update its artifact row and an evaluation-memory record.
+6. Record no ledger transaction and perform no publication, outreach, payment, or other external action.
+7. On the next run, overwrite that same tracked artifact as an improvement revision rather than duplicating it.
+
+## Testing
 
 ```bash
 pytest
 ruff check .
 mypy src/money_agent --ignore-missing-imports
 pyright src/money_agent
+python -m compileall -q src tests
 ```
 
-External web/API calls are mocked in automated tests. Tests cover the complete Version 1 suite plus
-research persistence, attribution, fresh-cache reuse, stale refresh, query/source limits, provider
-failure, empty results, deduplication, and read-only tool exposure.
+Tests cover the Version 1 ledger/approval safety rules; Version 2 research attribution, caching, staleness, limits, and read-only tool exposure; and Version 3 traversal/symlink restrictions, sensitive-file denial, creation/modification, structured files, artifact persistence/reuse, size/file limits, restricted execution, and a complete offline no-external-action smoke run.
 
-## Current capabilities
-
-- Persistent strategies, decisions, experiments, memories, ledger, approvals, research, and
-  research-run audits in SQLite.
-- Live attributable read-only research with the hosted OpenAI `web_search` tool.
-- Typed, research-aware decisions through the OpenAI Agents SDK.
-- Source caching, staleness refresh, deduplication, failure handling, and configurable cost limits.
-- Strict realized-vs-projected accounting, no-debt enforcement, and central approval safeguards.
-- A transparent no-key offline mode.
+The hardened no-follow file operations and restricted executor currently require a POSIX platform. They are tested on Linux; the program fails closed rather than offering a weaker Windows executor.
 
 ## Current limitations
 
-- No browser/computer control, code execution, general file/website creation, email, outreach,
-  payments, form submission, authentication, public posting, or scheduler.
-- No external executor exists, even after an approval record is marked approved.
-- The offline planner is fixed logic and cannot create fresh web research.
-- Findings are synthesized and conservatively marked inferred; claim-by-claim corroboration across
-  independent primary sources is not implemented yet.
-- The CLI performs one bounded cycle per invocation; it does not run unattended.
-- Trusted result adapters for simulated realized revenue/expenses do not exist, so the CLI cannot
-  fabricate revenue.
-
-## Planned next steps (not implemented)
-
-1. Add claim-level corroboration and source-quality scoring.
-2. Add approval review with immutable audit events and expiration.
-3. Add a capability registry and sandboxed local artifact tools.
-4. Add experiment metrics and evidence-based strategy scoring.
-5. Add a scheduler with run/time/token budgets and a reliable stop control.
-6. Add specialized agents only after tracing and limits exist.
-7. Add narrow external adapters one at a time, each default-denied and approval-gated.
+- The creator uses coarse strategy keywords to choose digital-product, service, content, or software/landing-page assets; it does not yet derive bespoke schemas or full applications for every niche.
+- Local checks do not prove market demand, accessibility, browser compatibility, production security, profitability, or fitness for a customer.
+- Restricted Python intentionally cannot import libraries or exercise full applications. There is no JavaScript runtime or package manager.
+- The AST policy plus process limits are defense in depth, not an operating-system container. An attacker who already has independent host filesystem/process access is outside the planner threat model and could race or tamper with the process; use an OS container or VM for hostile human-supplied code.
+- Online research findings remain model syntheses marked inferred; claim-level independent corroboration is not yet implemented.
+- The CLI runs one bounded cycle per invocation and has no scheduler.
+- No external action or real-world revenue/expense adapter exists.
